@@ -23,7 +23,7 @@ def get_folders():
     selected = False
     while not selected:
         print_names(folders)
-        args = input("Type the numbers of the folders of interest separated by an space > ")
+        args = input("> ")
         try:
             folds = args.split(" ")
             folds = [int(i) for i in folds]
@@ -111,9 +111,9 @@ def compute_simple_stokes(Ex, Ey, Ez):
     s[:, :, 2] = 0
     s[:, :, 3] = 2*np.sqrt(np.sum(cross*cross, axis=-1))
 
-    s[:, :, 1] /= s[:, :, 0]
-    s[:, :, 2] /= s[:, :, 0]
-    s[:, :, 3] /= s[:, :, 0]
+    #s[:, :, 1] /= s[:, :, 0]
+    #s[:, :, 2] /= s[:, :, 0]
+    #s[:, :, 3] /= s[:, :, 0]
 
     return s
 
@@ -126,19 +126,15 @@ def main():
     except:
         pass
     
-    for kind in ("Dextro", "Radial"):
+    for kind in ("pRad", "pDex"):
         for folder in folders:
             print(f"Processing {folder}, {kind}")
             fig, ax = plt.subplots(2, 2, constrained_layout=True, figsize=(8,7))
-            Ex, Ey, p_size = load_files(f"{folder}/{kind}")
+            Ex, Ey, p_size = load_files(f"{folder}/{kind}_retrieved")
             Ex, Ey, Ez = get_z_component(Ex, Ey, p_size, z=z)
             ny, nx = Ez.shape
-
-            plt.figure()
-            plt.imshow(np.abs(Ez))
-            plt.show()
-
             s = compute_simple_stokes(Ex, Ey, Ez)
+            s /= s.max()
             L = p_size*ny/2*1e3
 
             ax[0, 0].imshow(s[:, :, 0], cmap="gray", extent=[-L, L, -L, L])
