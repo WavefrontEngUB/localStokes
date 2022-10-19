@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import fft2, fftshift
 from stokes_simples import compute_simple_stokes
+from propygator.HighAperture import debye_ricwol
+from propygator.Misc import get_zernike_index, zernike_p
 
-kind = "radial"  # "radial" or "circular"
-
+kind = "radial"
 
 def ricardo_llop(E, NA, L, f, z=0):
     ny, nx, nc = E.shape
@@ -49,27 +50,59 @@ def ricardo_llop(E, NA, L, f, z=0):
 
 if __name__ == "__main__":
     n = 512
-    NA = 0.45
+    NA = 0.35
     lamb = 520e-6
     f = 5/lamb
     E = np.zeros((n, n, 2), dtype=np.complex128)
     y, x = np.mgrid[-n//2:n//2, -n//2:n//2]
+    x = x+3
+    y = y+3
     phi = np.arctan2(y, x)
     if kind == "radial":
         E[:, :, 0] = np.cos(phi)
         E[:, :, 1] = np.sin(phi)
     elif kind == "circular":
         E[:, :, 0] = 1
-        E[:, :, 1] = 1j
+        E[:, :, 1] = -1j
 
     Lf = 16
     L = n*f/4/Lf
 
+    # Càlcul Zernikes...
+    rho = np.sqrt(x*x+y*y)/n*L/f
+    rho[rho> NA] = 0
+    rho/=rho.max()
+    #
+    coeffs = {0:0,
+              1 :0e-2,
+              2 :0e-2,
+              3 :0e-2,
+              5 :0e-2,
+              6 :-0e-2,
+              7 :0.0e-1,
+              8 :0.0e-2,
+              9 :0.0e-2,
+              12:-0e-1,
+             }
+    idx = get_zernike_index("OSA")
+    first = True
+    for key in coeffs.keys():
+        value = coeffs[key]
+        n, m = idx[key]
+        if first:
+            R = value*zernike_p(rho, phi, n, m)
+            first = False
+        else:
+            R += value*zernike_p(rho, phi, n, m)
+    E[:, :, 0] *= np.exp(2j*np.pi*R)
+    E[:, :, 1] *= np.exp(2j*np.pi*R)
     # Camp focal
     Ef = ricardo_llop(E, NA, L, f)
 
     # Stokes en coordenades estranyes
+    #Ef[:, :, 0] = np.roll(Ef[:, :, 0], (4, -4), axis=(0, 1))
     s = compute_simple_stokes(Ef[:, :, 0], Ef[:, :, 1], Ef[:, :, 2])
+    s /= s.max()
 
     I = np.real(np.conj(Ef)*Ef)
     fig, ax = plt.subplots(2, 2, constrained_layout=True)
@@ -107,5 +140,5 @@ if __name__ == "__main__":
     ax2[1, 1].set_xlabel("x ($\mathrm{\mu m}$)")
     ax2[1, 1].set_ylabel("y ($\mathrm{\mu m}$)")
 
-    fig2.savefig(f"{kind}_{NA}.png", bbox_inches="tight", dpi=200)
+    fig2.savefig(f"{kind}.png", bbox_inches="tight", dpi=200)
     plt.show()
