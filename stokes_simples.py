@@ -23,7 +23,8 @@ def get_folders():
     selected = False
     while not selected:
         print_names(folders)
-        args = input("> ")
+        args = input("> Type the numbers of the folders of interest separated "
+                     "by an space (e.g. 0 2 5): ")
         try:
             folds = args.split(" ")
             folds = [int(i) for i in folds]
@@ -49,7 +50,7 @@ def get_z_component(Ex, Ey, p_size, lamb=520e-6, z=0):
     beta = y/y.max()/p_size*lamb/(2*np.pi)
 
     gamma = np.sqrt(1+0j-alpha*alpha-beta*beta)
-    Az = (alpha*Ex+beta*Ey)/gamma
+    Az = (alpha*Ax+beta*Ay)/gamma
 
 
     # Propaguem si s'escau
@@ -76,7 +77,13 @@ def load_files(target):
     phi_x = data_p["phi_x"]
     phi_y = data_p["phi_y"]
 
-    return Ax*np.exp(1j*phi_x), Ay*np.exp(1j*phi_y), p_size
+    # plt.figure()
+    # plt.imshow(np.angle(phi_x))
+    # plt.colorbar()
+    # plt.show()
+
+    # return Ax*np.exp(1j*phi_x), Ay*np.exp(1j*phi_y), p_size
+    return Ax * phi_x, Ay * phi_y, p_size
 
 def compute_simple_stokes(Ex, Ey, Ez):
     ny, nx  = Ex.shape
