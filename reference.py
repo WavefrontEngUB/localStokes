@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import fft2, fftshift
-from stokes_simples import compute_simple_stokes
 from propygator.HighAperture import debye_ricwol
 from propygator.Misc import get_zernike_index, zernike_p
 
@@ -47,6 +46,37 @@ def ricardo_llop(E, NA, L, f, z=0):
     Ef[:, :, 1] = fftshift(fft2(Ef[:, :, 1]))
     Ef[:, :, 2] = fftshift(fft2(Ef[:, :, 2]))
     return Ef
+
+def get_z_component(Ex, Ey, p_size, lamb=520e-6, z=0):
+    fft = lambda field: np.fft.ifftshift(np.fft.fft2(np.fft.fftshift(field)))
+    ifft = lambda spectr: np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(spectr)))
+
+    Ax = fft(Ex)
+    Ay = fft(Ey)
+    ny, nx = Ex.shape
+
+    y, x = np.mgrid[-ny//2:ny//2, -nx//2:nx//2]
+
+    alpha = x/x.max()/p_size*lamb/(2*np.pi)
+    beta = y/y.max()/p_size*lamb/(2*np.pi)
+
+    gamma = np.sqrt(1+0j-alpha*alpha-beta*beta)
+    Az = (alpha*Ax+beta*Ay)/gamma
+
+
+    # Propaguem si s'escau
+    if z > 0:
+        H = np.exp(-2j*np.pi*gamma*z)
+        H[alpha*alpha+beta*beta >= 1] = 0
+        Az *= H
+        Ax *= H
+        Ay *= H
+        Ex = ifft(Ax)
+        Ey = ifft(Ay)
+
+    Ez = ifft(Az)
+
+    return Ex, Ey, Ez
 
 if __name__ == "__main__":
     n = 512
@@ -100,8 +130,10 @@ if __name__ == "__main__":
     Ef = ricardo_llop(E, NA, L, f)
 
     # Stokes en coordenades estranyes
+    import import_ipynb
+    from Report import compute_3D_stokes
     #Ef[:, :, 0] = np.roll(Ef[:, :, 0], (4, -4), axis=(0, 1))
-    s = compute_simple_stokes(Ef[:, :, 0], Ef[:, :, 1], Ef[:, :, 2])
+    s = compute_3D_stokes(Ef[:, :, 0], Ef[:, :, 1], Ef[:, :, 2])
     s /= s.max()
 
     I = np.real(np.conj(Ef)*Ef)
