@@ -321,7 +321,9 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
         ax.set_yticks(ticks)
         ax.set_yticklabels(ticks, fontsize=20)
 
-    plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
+    cbar = plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
+    for t in cbar.ax.get_yticklabels():
+        t.set_fontsize(20)
     plt.show()
 
     return print_fig(f"(Pol. {label}) 3D Stokes in the PQ-basis and "
