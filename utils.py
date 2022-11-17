@@ -169,7 +169,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
     fig = plt.figure(figsize=(20, 40))
     axs = ImageGrid(fig, 111,
                     nrows_ncols=(2, 4),
-                    axes_pad=0.4,
+                    axes_pad=0.6,
                     cbar_location="right",
                     cbar_mode="edge",
                     cbar_size="5%",
@@ -208,8 +208,8 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
 
     for idx, ax in enumerate(axs):
         ax.set_aspect('equal')
-        ax.set_xlabel(r'$x \, / \, \lambda$')
-        ax.set_ylabel(r'$y \, / \, \lambda$')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
 
         if idx == 0:
             im = ax.imshow(normalize(Ax), cmap=cmap_amps,
@@ -245,19 +245,21 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
             ax.set_title(r'$\phi_z$', fontsize=fs)
 
         ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=20)
         ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=20)
         if idx == 5:
             cbar = axs.cbar_axes[1].colorbar(im,  # FIXME: The line below is not working
             # cbar = fig.colorbar(im, ax=ax, cax=axs.cbar_axes[idx], orientation='vertical', shrink=0.5,
                                              ticks=[-np.pi, -np.pi / 2, 0, np.pi / 2,
                                                     np.pi])
             cbar.ax.set_yticklabels(
-                [r'$-\pi$', r'$-\pi/2$', r'$0$', r'$\pi/2$', r'$\pi$'])
+                [r'$-\pi$', r'$-\pi/2$', r'$0$', r'$\pi/2$', r'$\pi$'], fontsize=20)
         elif idx == 2:
             cbar = fig.colorbar(im, ax=ax, cax=axs.cbar_axes[0], orientation='vertical',
                                 shrink=0.5,
                                 ticks=[0, 1])
-            cbar.ax.set_yticklabels([r'0', r'1'])
+            cbar.ax.set_yticklabels([r'0', r'1'], fontsize=20)
 
     plt.show()
     return print_fig(f"(Pol. {label}) Field in the focal plane.", fig_num)
@@ -283,7 +285,7 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
     fig = plt.figure(figsize=(20, 30))
     axs = ImageGrid(fig, 111,
                     nrows_ncols=(2, 3),
-                    axes_pad=0.4,
+                    axes_pad=0.6,
                     cbar_location="right",
                     cbar_mode="single",
                     cbar_size="5%",
@@ -308,14 +310,16 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
 
     for idx, ax in enumerate(axs):
         ax.set_aspect('equal')
-        ax.set_xlabel(r'$x \, / \, \lambda$')
-        ax.set_ylabel(r'$x \, / \, \lambda$')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$x \, / \, \lambda$', fontsize=20)
 
         im = ax.imshow(stokes[idx][trim:ntrim, trim:ntrim],
                        cmap='Reds', vmin=0, vmax=1, extent=extent)  #
-        ax.set_title(titles[idx])
+        ax.set_title(titles[idx], fontsize=20)
         ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=20)
         ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=20)
 
     plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
     plt.show()
