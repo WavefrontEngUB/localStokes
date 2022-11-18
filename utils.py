@@ -111,6 +111,33 @@ def print_fig(msg, fig_num):
     return fig_num
 
 
+def plot_raw_data(retriever_obj, label='', fig_num=0, cmap="gray"):
+    irradiances = [retriever_obj.cropped[0][pol] for pol in range(6)]
+    maximum = max([np.max(irr) for irr in irradiances])
+
+    pol_keys=["$I_{0}$", "$I_{45}$", "$I_{90}$", "$I_{135}$", "$I_{Lev}$", "$I_{Dex}$"]
+
+    fig = plt.figure(figsize=(20, 30))
+    axs = ImageGrid(fig, 111,
+                    nrows_ncols=(2, 3),
+                    axes_pad=0.6,
+                    cbar_location="right",
+                    cbar_mode="single",
+                    cbar_size="5%",
+                    cbar_pad=0.2
+                    )
+
+    for idx, ax in enumerate(axs):
+        irr = irradiances[idx]
+        im = ax.imshow(irr/maximum, cmap=cmap, vmin=0, vmax=1)
+        ax.set_title(pol_keys[idx])
+
+    cbar = plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
+    plt.show()
+    title = f"({label} Pol.) The raw irradiances captured by the camera."
+    return print_fig(title, fig_num)
+
 def plot_raw_trans_field(Ex, Ey, label='', fig_num=0, cmap_abs='jet', cmap_ph='hsv'):
     fig, ax = plt.subplots(2, 2, constrained_layout=True, figsize=(10,10))
     ax[0, 0].imshow(np.abs(Ex), cmap=cmap_abs)
@@ -122,7 +149,7 @@ def plot_raw_trans_field(Ex, Ey, label='', fig_num=0, cmap_abs='jet', cmap_ph='h
     ax[1, 1].imshow(np.angle(Ey), cmap=cmap_ph)
     ax[1, 1].set_title(r"$\phi_y$")
     plt.show()
-    title = f"(Pol. {label}) The raw data of the retrieved transversal component."
+    title = f"({label} Pol.) The raw data of the retrieved transversal component."
     return print_fig(title, fig_num)
 
 
@@ -133,7 +160,7 @@ def plot_raw_long_field(Ez, label='', fig_num=0, cmap_abs='jet', cmap_ph='hsv'):
     ax[1].imshow(np.angle(Ez), cmap=cmap_ph)
     ax[1].set_title(r"$\phi_z$")
     plt.show()
-    title = f"(Pol. {label}) The raw data of the retrieved longitudinal component."
+    title = f"({label} Pol.) The raw data of the retrieved longitudinal component."
     return print_fig(title, fig_num)
 
 
@@ -262,7 +289,81 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
             cbar.ax.set_yticklabels([r'0', r'1'], fontsize=20)
 
     plt.show()
-    return print_fig(f"(Pol. {label}) Field in the focal plane.", fig_num)
+    return print_fig(f"({label} Pol.) Field in the focal plane.", fig_num)
+
+
+def plot_trans_stokes(S0, S1, S2, S3, label, trim=None,
+                      pixel_size=1, lamb=520e-3, fig_num=0, verbose=1):
+    """ Plot the Stokes parameters of the transmitted field.
+    """
+    ntrim = -trim if trim else None
+    lims = S0[trim:ntrim, trim:ntrim].shape
+
+    ticks_step = 1  # lambda
+
+    extension = lims[0] * pixel_size / lamb  # window size in microns
+    half_side = extension / 2
+    extent = [-half_side, half_side, -half_side, half_side]
+
+    ticks = [0]
+    for tt in range(int(extension / ticks_step / 2)):
+        tt1 = tt + 1
+        ticks.append(tt1 * ticks_step)
+        ticks.insert(0, -tt1 * ticks_step)
+
+    fig = plt.figure(figsize=(20, 40))
+    axs = ImageGrid(fig, 111,
+                    nrows_ncols=(1, 4),
+                    axes_pad=0.6,
+                    cbar_location="right",
+                    cbar_mode="single",
+                    cbar_size="5%",
+                    cbar_pad=0.2
+                    )
+
+    # Ax = np.abs(Ex[trim:ntrim, trim:ntrim])
+    # Ay = np.abs(Ey[trim:ntrim, trim:ntrim])
+    # phx = np.angle(Ex[trim:ntrim, trim:ntrim])
+    # phy = np.angle(Ey[trim:ntrim, trim:ntrim])
+    #
+    # S0 = Ax ** 2 + Ay ** 2
+    # S1 = Ax ** 2 - Ay ** 2
+    # S2 = 2 * Ax * Ay * np.cos(phy - phx)
+    # S3 = 2 * Ax * Ay * np.sin(phy - phx)
+
+    stokes = [S0[trim:ntrim, trim:ntrim]/S0.max(), S1[trim:ntrim, trim:ntrim]/S0.max(),
+              S2[trim:ntrim, trim:ntrim]/S0.max(), S3[trim:ntrim, trim:ntrim]/S0.max()]
+
+    if verbose > 1:
+        get_title = lambda name, im: (f'${name} ; '
+                                      f'vmin={im.min():.2g} ; '
+                                      f'vmax={im.max():.2g}$')
+        fs = 14
+    else:
+        get_title = lambda name, im: (f'${name}$')
+        fs = 20
+
+    cmap = 'seismic'
+
+    for idx, ax in enumerate(axs):
+        ax.set_aspect('equal')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+        im = ax.imshow(stokes[idx], vmin=-1, vmax=1,
+                       cmap=cmap, extent=extent)
+        ax.set_title(get_title(f'S_{idx}', stokes[idx]), fontsize=fs)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=20)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=20)
+
+    cbar = plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[-1, 0, 1])
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
+    plt.show()
+
+    return print_fig(f"({label} Pol.) Experimental transversal Stokes "
+                     f"in the focal plane.", fig_num)
 
 
 def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
@@ -291,17 +392,10 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
                     cbar_size="5%",
                     cbar_pad=0.2
                     )
-
-    titles = [fr'$S_{i}$' for i in range(4)]
-    titles.insert(2, r'$S_1^{num}$')
-    titles.insert(5, r'$S_3^{num}$')
-
-    # teo_max = theoric_s[:,:,0].max()
-    # exp_max = experimental_s[:, :, 0].max()
-    # stokes = [experimental_s[:,:,i] / experimental_s[:,:,i].max() for i in range(4)]
-    # stokes.insert(2, theoric_s[:,:,1]/theoric_s[:,:,1].max())
-    # stokes.insert(5, theoric_s[:,:,3]/theoric_s[:,:,3].max())
-    # stokes[3] = np.zeros_like(experimental_s[:,:,2])
+    S_tilde = r'\tilde{S}'
+    titles = [f'${S_tilde}_{i}$' for i in range(4)]
+    titles.insert(2, f'${S_tilde}'+r'_1^{num}$')
+    titles.insert(5, f'${S_tilde}'+r'_3^{num}$')
 
     stokes = [(experimental_s[:, :, i]) for i in range(4)]
     stokes.insert(2, (theoric_s[:, :, 1]))
@@ -322,11 +416,10 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
         ax.set_yticklabels(ticks, fontsize=20)
 
     cbar = plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
-    for t in cbar.ax.get_yticklabels():
-        t.set_fontsize(20)
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
     plt.show()
 
-    return print_fig(f"(Pol. {label}) 3D Stokes in the PQ-basis and "
+    return print_fig(f"({label} Pol.) 3D Stokes in the PQ-basis and "
                      f"the numerical calculation for comparison purposes.", fig_num)
 
 if __name__ == "__main__":
