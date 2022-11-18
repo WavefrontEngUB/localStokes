@@ -230,7 +230,9 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
                                       fr'vmax={im.max():.2g}$')
         fs = 14
     else:
-        get_title = lambda name, im: (fr'${name}$')
+        bra = '{'
+        ket = '}'
+        get_title = lambda name, im: (f'${name}$  $_{bra}[max={int(im.max())}]{ket}$')
         fs = 20
 
     for idx, ax in enumerate(axs):
@@ -286,7 +288,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
             cbar = fig.colorbar(im, ax=ax, cax=axs.cbar_axes[0], orientation='vertical',
                                 shrink=0.5,
                                 ticks=[0, 1])
-            cbar.ax.set_yticklabels([r'0', r'1'], fontsize=20)
+            cbar.ax.set_yticklabels([r'0', r'max'], fontsize=20)
 
     plt.show()
     return print_fig(f"({label} Pol.) Field in the focal plane.", fig_num)
