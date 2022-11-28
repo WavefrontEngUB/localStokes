@@ -15,21 +15,32 @@ def ricardo_llop(E, NA, L, f, z=0):
     ny, nx, nc = E.shape
     Ef = np.zeros((ny, nx, 3), np.complex128)
 
-    y, x = np.mgrid[-ny//2:ny//2, -nx//2:nx//2]
-    y = y/y.max()*L
-    x = x/x.max()*L
+    _, _, coords = get_EP_coords(NA, 520e-3, nx)
 
-    r2 = x*x+y*y
-    sinth2 = r2/f/f
-    mask = sinth2 < NA*NA
-    sinth = np.sqrt(sinth2)*(mask)
+    # y, x = coords["y"], coords["x"]
+    # r2 = coords["r2"]
+    mask = coords["mask"]
+    sinth = coords["sinth"]
+    costh = coords["costh"]
+    sqcosth = coords["sqcosth"]
+    sinphi = coords["sinphi"]
+    cosphi = coords["cosphi"]
 
-    costh = np.sqrt(1-sinth2, where=mask)
-    costh *= mask
-    sqcosth = np.sqrt(costh)
-    phi = np.arctan2(y, x)
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
+    # y, x = np.mgrid[-ny//2:ny//2, -nx//2:nx//2]
+    # y = y/y.max()*L
+    # x = x/x.max()*L
+    #
+    # r2 = x*x+y*y
+    # sinth2 = r2/f/f
+    # mask = sinth2 < NA*NA
+    # sinth = np.sqrt(sinth2)*(mask)
+    #
+    # costh = np.sqrt(1-sinth2, where=mask)
+    # costh *= mask
+    # sqcosth = np.sqrt(costh)
+    # phi = np.arctan2(y, x)
+    # sinphi = np.sin(phi)
+    # cosphi = np.cos(phi)
 
     # Multiplicació pels vectors unitaris...
     Ef[:, :, 0] = mask*E[:, :, 0]*(sinphi*sinphi+cosphi*cosphi*costh) +\
@@ -81,29 +92,73 @@ def get_z_component(Ex, Ey, p_size, lamb=520e-3, z=0):
     return Ex, Ey, Ez
 
 
-def get_theoretical_field(kind, NA=0.7, lamb=520e-3, n=256):
+def get_theoretical_field(kind, sigma=2, avoid_center=True,
+                          NA=0.7, lamb=520e-3, n=256, verbose=0):
     """ kind = "radial", "circular" or "lineal"
     """
-    f = 5/lamb
+    L, f, coords = get_EP_coords(NA, lamb, n)
+
     E = np.zeros((n, n, 2), dtype=np.complex128)
-    y, x = np.mgrid[-n//2:n//2, -n//2:n//2]
-    phi = np.arctan2(y, x)
+
+    # profile
+    g = np.zeros((n, n), dtype=np.complex128)
+    g += np.exp( -sigma/2 * (coords["costh"]-coords["alpha_bar"])**2/(1-coords["alpha_0"])**2 )
+    g /= coords["sqcosth"] * (1 - coords["costh"]) * coords["mask"]
+    if avoid_center:
+        g *= coords["sinth"]
+    g *= coords["mask"]
+
+    # polarization
     if kind == "radial":
-        E[:, :, 0] = np.cos(phi)
-        E[:, :, 1] = np.sin(phi)
+        E[:, :, 0] = coords["cosphi"]
+        E[:, :, 1] = coords["sinphi"]
     elif kind == "circular":
         E[:, :, 0] = 1
         E[:, :, 1] = 1j
-    elif kind == "lineal":
+    elif kind == "linear":
         E[:, :, 0] = 0
         E[:, :, 1] = 1
 
-    Lf = 16
-    L = n*f/4/Lf
+    E *= np.repeat(g[:, :, np.newaxis], 2, axis=2)
+    np.nan_to_num(E, copy=False)
+
+    plot_raw_trans_field(E[:,:,0], E[:,:,1], "*** EP field ***") if verbose>2 else None
 
     # Camp focal
     return ricardo_llop(E, NA, L, f)
 
+
+def get_EP_coords(NA, lamb, n):
+    f = 5 / lamb
+    Lf = 16
+    L = n * f / 4 / Lf
+
+    y, x = np.mgrid[-n // 2:n // 2, -n // 2:n // 2]
+    y = y / y.max() * L
+    x = x / x.max() * L
+
+    r2 = x * x + y * y
+    sinth2 = r2 / f / f
+    mask = sinth2 < NA * NA
+
+    sinth = np.sqrt(sinth2) * (mask)
+    costh = np.sqrt(1 - sinth2, where=mask)
+    costh *= mask
+    sqcosth = np.sqrt(costh)
+    theta = np.arcsin(sinth) * mask
+
+    theta_0 = np.arcsin(NA)
+    alpha_0 = np.cos(theta_0)
+    alpha_bar = (alpha_0 + 1) * 0.5
+
+    phi = np.arctan2(y, x)
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+
+    return L, f, {"x": x, "y": y, "r2": r2, "mask": mask,
+                  "theta": theta, "sinth": sinth, "costh": costh, "sqcosth": sqcosth,
+                  "phi": phi, "sinphi": sinphi, "cosphi": cosphi,
+                  "theta_0":alpha_0, "alpha_0": alpha_0, "alpha_bar": alpha_bar}
 
 def print_fig(msg, fig_num):
     fig_num += 1
@@ -210,7 +265,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
     phy = np.angle(Ey[trim:ntrim, trim:ntrim])
     phz = np.angle(Ez[trim:ntrim, trim:ntrim])
 
-    I = Ax ** 2 + Ay ** 2
+    I = np.sqrt(Ax ** 2 + Ay ** 2)
 
     # phx = np.mod(phx + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
     # phy = np.mod(phy + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
@@ -251,7 +306,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
         elif idx == 2:
             im = ax.imshow(normalize(I), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title('|E_x|^2+|E_y|^2', I), fontsize=fs)
+            ax.set_title(get_title(r'\sqrt{|E_x|^2+|E_y|^2}', I), fontsize=fs)
         elif idx == 3:
             im = ax.imshow(normalize(Az), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
