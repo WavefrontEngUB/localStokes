@@ -424,7 +424,57 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
     return print_fig(f"({label} Pol.) 3D Stokes in the PQ-basis and "
                      f"the numerical calculation for comparison purposes.", fig_num)
 
-if __name__ == "__main__":
+def plot_normal_surface(axis, E, pixel_size=1, spacing=8):
+    """Return a vector plot of the normal vectors on which the 3D Stokes parameters of the E
+    field are computed."""
+    _, nfy, nfx = E.shape
+    # We reduce the number of points to compute, as to properly visualize some of the vectors
+    ny, nx = nfy//spacing, nfx//spacing
+    y, x = np.mgrid[0:ny, 0:nx]
+    y = y/ny*nfy*pixel_size
+    x = x/nx*nfx*pixel_size
+
+    # Computing the normal vector as defined by the article
+    Er = np.real(E)
+    Ei = np.imag(E)
+
+    N = np.cross(Er, Ei, axis=0)
+    # FIXME: False normalization, it goes to zero where no field is present...
+    N /= N.max()
+
+    u = N[0, ::spacing, ::spacing]
+    v = N[1, ::spacing, ::spacing]
+
+    axis.imshow(np.sum(np.real(np.conj(E)*E), axis=0), cmap="gray")
+    axis.quiver(x, y, u, v, color="blue")
+
+    pass
+
+def test():
+    # Load field data
+    data = np.load("data/Radial/filtered_results.npz")
+    Ex = data["A_x"][0]*data["phi_x"]
+    Ey = data["A_y"][0]*data["phi_y"]
+    ny, nx = Ex.shape
+    pixel_size = 0.0434
+    lam = 0.52
+
+    _, _, Ez = get_z_component(Ex, Ey, pixel_size)
+
+    # We create an array to contain the whole field
+    E = np.zeros((3, ny, nx), dtype=np.complex_)
+    E[0, :, :] = Ex
+    E[1, :, :] = Ey
+    E[2, :, :] = Ey
+
+    # Visualization
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+    plot_normal_surface(ax, E)
+
+    plt.show()
+
+def main():
     n = 512
     NA = 0.35
     lamb = 520e-6
@@ -520,3 +570,5 @@ if __name__ == "__main__":
 
     fig2.savefig(f"{kind}.png", bbox_inches="tight", dpi=200)
     plt.show()
+if __name__ == "__main__":
+    test()
