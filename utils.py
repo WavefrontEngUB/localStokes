@@ -92,8 +92,7 @@ def get_z_component(Ex, Ey, p_size, lamb=520e-3, z=0):
     return Ex, Ey, Ez
 
 
-def get_theoretical_field(kind, sigma=2, avoid_center=True,
-                          NA=0.7, lamb=520e-3, n=256, verbose=0):
+def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0):
     """ kind = "radial", "circular" or "lineal"
     """
     L, f, coords = get_EP_coords(NA, lamb, n)
@@ -104,7 +103,7 @@ def get_theoretical_field(kind, sigma=2, avoid_center=True,
     g = np.zeros((n, n), dtype=np.complex128)
     g += np.exp( -sigma/2 * (coords["costh"]-coords["alpha_bar"])**2/(1-coords["alpha_0"])**2 )
     g /= coords["sqcosth"] * (1 - coords["costh"]) * coords["mask"]
-    if avoid_center:
+    if kind == "radial":
         g *= coords["sinth"]
     g *= coords["mask"]
 
@@ -116,13 +115,13 @@ def get_theoretical_field(kind, sigma=2, avoid_center=True,
         E[:, :, 0] = 1
         E[:, :, 1] = 1j
     elif kind == "linear":
-        E[:, :, 0] = 0
-        E[:, :, 1] = 1
+        E[:, :, 0] = 1
+        E[:, :, 1] = 0
 
     E *= np.repeat(g[:, :, np.newaxis], 2, axis=2)
     np.nan_to_num(E, copy=False)
 
-    plot_raw_trans_field(E[:,:,0], E[:,:,1], "*** EP field ***") if verbose>2 else None
+    plot_raw_trans_field(E[:,:,0], E[:,:,1], "*** EP field ***") if verbose>1 else None
 
     # Camp focal
     return ricardo_llop(E, NA, L, f)
@@ -462,7 +461,7 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
     for idx, ax in enumerate(axs):
         ax.set_aspect('equal')
         ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
-        ax.set_ylabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
 
         im = ax.imshow(stokes[idx][trim:ntrim, trim:ntrim],
                        cmap='Reds', vmin=0, vmax=1, extent=extent)  #
@@ -478,6 +477,84 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
 
     return print_fig(f"({label} Pol.) 3D Stokes in the PQ-basis and "
                      f"the numerical calculation for comparison purposes.", fig_num)
+
+
+def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
+                   label='', pixel_size=1, lamb=520e-3, fig_num=0, trim=100):
+    fig = plt.figure(figsize=(10,7.5))
+    subfigs = fig.subfigures(2, 1, height_ratios=(1,2.75))
+
+    cmap = 'seismic'
+    ntrim = -trim if trim else None
+    lims = local_stokes[0][trim:ntrim, trim:ntrim].shape
+
+    ticks_step = 1  # lambda
+
+    extension = lims[0] * pixel_size / lamb  # window size in microns
+    half_side = extension / 2
+    extent = [-half_side, half_side, -half_side, half_side]
+
+    ticks = [0]
+    for tt in range(int(extension / ticks_step / 2)):
+        tt1 = tt + 1
+        ticks.append(tt1 * ticks_step)
+        ticks.insert(0, -tt1 * ticks_step)
+
+    axs_t = ImageGrid(subfigs[0], 111,
+                      nrows_ncols=(1, 4),
+                      axes_pad=0.1
+                      )
+
+    axs_l = ImageGrid(subfigs[1], 111,
+                      nrows_ncols=(2, 3),
+                      axes_pad=0.1
+                      )
+
+    for idx, ax in enumerate(axs_t):
+        ax.set_aspect('equal')
+        ax.xaxis.set_label_position('top')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+        im = ax.imshow(trans_stokes[idx][trim:ntrim,trim:ntrim]/trans_stokes[0].max(), vmin=-1, vmax=1,
+                       cmap=cmap, extent=extent)
+        ax.annotate(f'$S_{idx}$', (0.05,0.05), xycoords='axes fraction', fontsize=18)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=16)
+        ax.xaxis.tick_top()
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=16)
+
+    s_indices = [0, 1, 3]*2
+    for idx, ax in enumerate(axs_l):
+        s_label = r'\tilde{S}' if idx < 3 else r'\tilde{S}^{num}'
+
+        stokes_l = local_stokes if idx < 3 else local_stokes_num
+        ax.set_aspect('equal')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+        im = ax.imshow(stokes_l[trim:ntrim,trim:ntrim,s_indices[idx]], vmin=-1, vmax=1,
+                       cmap=cmap, extent=extent)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=16)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=16)
+        ax.annotate(f'${s_label}_{s_indices[idx]}$', (0.05,0.05), xycoords='axes fraction', fontsize=18)
+
+    fig.subplots_adjust(right=0.75)
+    cbar_ax = fig.add_axes([1, 0.05, 0.02, 0.85])
+    cbar = plt.colorbar(im, cax=cbar_ax, ticks=[-1, 0, 1])
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
+
+    plt.show()
+
+    return print_fig(f"({label} Pol.) Main figure in the paper. "
+                     f"(top) Transversal Stokes images, "
+                     f"(center) Experimental local Stokes images in the PQ-basis, and "
+                     f"(bottom) Numerical calculation of local Stokes images "
+                     f"for comparison purposes.", fig_num)
+
 
 if __name__ == "__main__":
     n = 512
