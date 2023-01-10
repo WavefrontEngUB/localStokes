@@ -481,7 +481,7 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
 
 def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
                    label='', pixel_size=1, lamb=520e-3, fig_num=0, trim=100):
-    fig = plt.figure(figsize=(10,7.5))
+    fig = plt.figure(figsize=(10,7.5), layout='tight')
     subfigs = fig.subfigures(2, 1, height_ratios=(1,2.75))
 
     cmap = 'seismic'
@@ -543,7 +543,7 @@ def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
         ax.annotate(f'${s_label}_{s_indices[idx]}$', (0.05,0.05), xycoords='axes fraction', fontsize=18)
 
     fig.subplots_adjust(right=0.75)
-    cbar_ax = fig.add_axes([1, 0.05, 0.02, 0.85])
+    cbar_ax = fig.add_axes([1, 0.0122, 0.03, 0.98])
     cbar = plt.colorbar(im, cax=cbar_ax, ticks=[-1, 0, 1])
     [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
 
