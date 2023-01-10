@@ -15,21 +15,32 @@ def ricardo_llop(E, NA, L, f, z=0):
     ny, nx, nc = E.shape
     Ef = np.zeros((ny, nx, 3), np.complex128)
 
-    y, x = np.mgrid[-ny//2:ny//2, -nx//2:nx//2]
-    y = y/y.max()*L
-    x = x/x.max()*L
+    _, _, coords = get_EP_coords(NA, 520e-3, nx)
 
-    r2 = x*x+y*y
-    sinth2 = r2/f/f
-    mask = sinth2 < NA*NA
-    sinth = np.sqrt(sinth2)*(mask)
+    # y, x = coords["y"], coords["x"]
+    # r2 = coords["r2"]
+    mask = coords["mask"]
+    sinth = coords["sinth"]
+    costh = coords["costh"]
+    sqcosth = coords["sqcosth"]
+    sinphi = coords["sinphi"]
+    cosphi = coords["cosphi"]
 
-    costh = np.sqrt(1-sinth2, where=mask)
-    costh *= mask
-    sqcosth = np.sqrt(costh)
-    phi = np.arctan2(y, x)
-    sinphi = np.sin(phi)
-    cosphi = np.cos(phi)
+    # y, x = np.mgrid[-ny//2:ny//2, -nx//2:nx//2]
+    # y = y/y.max()*L
+    # x = x/x.max()*L
+    #
+    # r2 = x*x+y*y
+    # sinth2 = r2/f/f
+    # mask = sinth2 < NA*NA
+    # sinth = np.sqrt(sinth2)*(mask)
+    #
+    # costh = np.sqrt(1-sinth2, where=mask)
+    # costh *= mask
+    # sqcosth = np.sqrt(costh)
+    # phi = np.arctan2(y, x)
+    # sinphi = np.sin(phi)
+    # cosphi = np.cos(phi)
 
     # Multiplicació pels vectors unitaris...
     Ef[:, :, 0] = mask*E[:, :, 0]*(sinphi*sinphi+cosphi*cosphi*costh) +\
@@ -81,29 +92,72 @@ def get_z_component(Ex, Ey, p_size, lamb=520e-3, z=0):
     return Ex, Ey, Ez
 
 
-def get_theoretical_field(kind, NA=0.7, lamb=520e-3, n=256):
+def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0):
     """ kind = "radial", "circular" or "lineal"
     """
-    f = 5/lamb
+    L, f, coords = get_EP_coords(NA, lamb, n)
+
     E = np.zeros((n, n, 2), dtype=np.complex128)
-    y, x = np.mgrid[-n//2:n//2, -n//2:n//2]
-    phi = np.arctan2(y, x)
+
+    # profile
+    g = np.zeros((n, n), dtype=np.complex128)
+    g += np.exp( -sigma/2 * (coords["costh"]-coords["alpha_bar"])**2/(1-coords["alpha_0"])**2 )
+    g /= coords["sqcosth"] * (1 - coords["costh"]) * coords["mask"]
     if kind == "radial":
-        E[:, :, 0] = np.cos(phi)
-        E[:, :, 1] = np.sin(phi)
+        g *= coords["sinth"]
+    g *= coords["mask"]
+
+    # polarization
+    if kind == "radial":
+        E[:, :, 0] = coords["cosphi"]
+        E[:, :, 1] = coords["sinphi"]
     elif kind == "circular":
         E[:, :, 0] = 1
         E[:, :, 1] = 1j
-    elif kind == "lineal":
-        E[:, :, 0] = 0
-        E[:, :, 1] = 1
+    elif kind == "linear":
+        E[:, :, 0] = 1
+        E[:, :, 1] = 0
 
-    Lf = 16
-    L = n*f/4/Lf
+    E *= np.repeat(g[:, :, np.newaxis], 2, axis=2)
+    np.nan_to_num(E, copy=False)
+
+    plot_raw_trans_field(E[:,:,0], E[:,:,1], "*** EP field ***") if verbose>1 else None
 
     # Camp focal
     return ricardo_llop(E, NA, L, f)
 
+
+def get_EP_coords(NA, lamb, n):
+    f = 5 / lamb
+    Lf = 16
+    L = n * f / 4 / Lf
+
+    y, x = np.mgrid[-n // 2:n // 2, -n // 2:n // 2]
+    y = y / y.max() * L
+    x = x / x.max() * L
+
+    r2 = x * x + y * y
+    sinth2 = r2 / f / f
+    mask = sinth2 < NA * NA
+
+    sinth = np.sqrt(sinth2) * (mask)
+    costh = np.sqrt(1 - sinth2, where=mask)
+    costh *= mask
+    sqcosth = np.sqrt(costh)
+    theta = np.arcsin(sinth) * mask
+
+    theta_0 = np.arcsin(NA)
+    alpha_0 = np.cos(theta_0)
+    alpha_bar = (alpha_0 + 1) * 0.5
+
+    phi = np.arctan2(y, x)
+    sinphi = np.sin(phi)
+    cosphi = np.cos(phi)
+
+    return L, f, {"x": x, "y": y, "r2": r2, "mask": mask,
+                  "theta": theta, "sinth": sinth, "costh": costh, "sqcosth": sqcosth,
+                  "phi": phi, "sinphi": sinphi, "cosphi": cosphi,
+                  "theta_0":alpha_0, "alpha_0": alpha_0, "alpha_bar": alpha_bar}
 
 def print_fig(msg, fig_num):
     fig_num += 1
@@ -210,7 +264,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
     phy = np.angle(Ey[trim:ntrim, trim:ntrim])
     phz = np.angle(Ez[trim:ntrim, trim:ntrim])
 
-    I = Ax ** 2 + Ay ** 2
+    I = np.sqrt(Ax ** 2 + Ay ** 2)
 
     # phx = np.mod(phx + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
     # phy = np.mod(phy + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
@@ -251,7 +305,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
         elif idx == 2:
             im = ax.imshow(normalize(I), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title('|E_x|^2+|E_y|^2', I), fontsize=fs)
+            ax.set_title(get_title(r'\sqrt{|E_x|^2+|E_y|^2}', I), fontsize=fs)
         elif idx == 3:
             im = ax.imshow(normalize(Az), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
@@ -407,7 +461,7 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
     for idx, ax in enumerate(axs):
         ax.set_aspect('equal')
         ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
-        ax.set_ylabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
 
         im = ax.imshow(stokes[idx][trim:ntrim, trim:ntrim],
                        cmap='Reds', vmin=0, vmax=1, extent=extent)  #
@@ -424,57 +478,85 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
     return print_fig(f"({label} Pol.) 3D Stokes in the PQ-basis and "
                      f"the numerical calculation for comparison purposes.", fig_num)
 
-def plot_normal_surface(axis, E, pixel_size=1, spacing=8):
-    """Return a vector plot of the normal vectors on which the 3D Stokes parameters of the E
-    field are computed."""
-    _, nfy, nfx = E.shape
-    # We reduce the number of points to compute, as to properly visualize some of the vectors
-    ny, nx = nfy//spacing, nfx//spacing
-    y, x = np.mgrid[0:ny, 0:nx]
-    y = y/ny*nfy*pixel_size
-    x = x/nx*nfx*pixel_size
 
-    # Computing the normal vector as defined by the article
-    Er = np.real(E)
-    Ei = np.imag(E)
+def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
+                   label='', pixel_size=1, lamb=520e-3, fig_num=0, trim=100):
+    fig = plt.figure(figsize=(10,7.5), layout='tight')
+    subfigs = fig.subfigures(2, 1, height_ratios=(1,2.75))
 
-    N = np.cross(Er, Ei, axis=0)
-    # FIXME: False normalization, it goes to zero where no field is present...
-    N /= N.max()
+    cmap = 'seismic'
+    ntrim = -trim if trim else None
+    lims = local_stokes[0][trim:ntrim, trim:ntrim].shape
 
-    u = N[0, ::spacing, ::spacing]
-    v = N[1, ::spacing, ::spacing]
+    ticks_step = 1  # lambda
 
-    axis.imshow(np.sum(np.real(np.conj(E)*E), axis=0), cmap="gray")
-    axis.quiver(x, y, u, v, color="blue")
+    extension = lims[0] * pixel_size / lamb  # window size in microns
+    half_side = extension / 2
+    extent = [-half_side, half_side, -half_side, half_side]
 
-    pass
+    ticks = [0]
+    for tt in range(int(extension / ticks_step / 2)):
+        tt1 = tt + 1
+        ticks.append(tt1 * ticks_step)
+        ticks.insert(0, -tt1 * ticks_step)
 
-def test():
-    # Load field data
-    data = np.load("data/Radial/filtered_results.npz")
-    Ex = data["A_x"][0]*data["phi_x"]
-    Ey = data["A_y"][0]*data["phi_y"]
-    ny, nx = Ex.shape
-    pixel_size = 0.0434
-    lam = 0.52
+    axs_t = ImageGrid(subfigs[0], 111,
+                      nrows_ncols=(1, 4),
+                      axes_pad=0.1
+                      )
 
-    _, _, Ez = get_z_component(Ex, Ey, pixel_size)
+    axs_l = ImageGrid(subfigs[1], 111,
+                      nrows_ncols=(2, 3),
+                      axes_pad=0.1
+                      )
 
-    # We create an array to contain the whole field
-    E = np.zeros((3, ny, nx), dtype=np.complex_)
-    E[0, :, :] = Ex
-    E[1, :, :] = Ey
-    E[2, :, :] = Ey
+    for idx, ax in enumerate(axs_t):
+        ax.set_aspect('equal')
+        ax.xaxis.set_label_position('top')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
 
-    # Visualization
-    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        im = ax.imshow(trans_stokes[idx][trim:ntrim,trim:ntrim]/trans_stokes[0].max(), vmin=-1, vmax=1,
+                       cmap=cmap, extent=extent)
+        ax.annotate(f'$S_{idx}$', (0.05,0.05), xycoords='axes fraction', fontsize=18)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=16)
+        ax.xaxis.tick_top()
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=16)
 
-    plot_normal_surface(ax, E)
+    s_indices = [0, 1, 3]*2
+    for idx, ax in enumerate(axs_l):
+        s_label = r'\tilde{S}' if idx < 3 else r'\tilde{S}^{num}'
+
+        stokes_l = local_stokes if idx < 3 else local_stokes_num
+        ax.set_aspect('equal')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+        im = ax.imshow(stokes_l[trim:ntrim,trim:ntrim,s_indices[idx]], vmin=-1, vmax=1,
+                       cmap=cmap, extent=extent)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=16)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=16)
+        ax.annotate(f'${s_label}_{s_indices[idx]}$', (0.05,0.05), xycoords='axes fraction', fontsize=18)
+
+    fig.subplots_adjust(right=0.75)
+    cbar_ax = fig.add_axes([1, 0.0122, 0.03, 0.98])
+    cbar = plt.colorbar(im, cax=cbar_ax, ticks=[-1, 0, 1])
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
 
     plt.show()
 
-def main():
+    return print_fig(f"({label} Pol.) Main figure in the paper. "
+                     f"(top) Transversal Stokes images, "
+                     f"(center) Experimental local Stokes images in the PQ-basis, and "
+                     f"(bottom) Numerical calculation of local Stokes images "
+                     f"for comparison purposes.", fig_num)
+
+
+if __name__ == "__main__":
     n = 512
     NA = 0.35
     lamb = 520e-6
@@ -570,5 +652,3 @@ def main():
 
     fig2.savefig(f"{kind}.png", bbox_inches="tight", dpi=200)
     plt.show()
-if __name__ == "__main__":
-    test()
