@@ -92,7 +92,7 @@ def get_z_component(Ex, Ey, p_size, lamb=520e-3, z=0):
     return Ex, Ey, Ez
 
 
-def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0):
+def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0, mario=False, m_topo=0):
     """ kind = "radial", "circular" or "lineal"
     """
     L, f, coords = get_EP_coords(NA, lamb, n)
@@ -105,6 +105,11 @@ def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0):
     g /= coords["sqcosth"] * (1 - coords["costh"]) * coords["mask"]
     if kind == "radial":
         g *= coords["sinth"]
+    if mario:
+        # let's define a Gaussian profile
+        g = np.ones((n, n), dtype=np.complex128)
+        g *= np.exp(-coords["r2"]/(2*sigma**2))
+        g *= np.exp(1j*coords["phi"]*m_topo)
     g *= coords["mask"]
 
     # polarization
@@ -217,8 +222,7 @@ def plot_raw_long_field(Ez, label='', fig_num=0, cmap_abs='jet', cmap_ph='hsv'):
     title = f"({label} Pol.) The raw data of the retrieved longitudinal component."
     return print_fig(title, fig_num)
 
-
-def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
+def plot_fields(Ex, Ey, Ez, trans_stokes=None, fig_num=0, trim=None, label="", verbose=1,
                 pixel_size=1, lamb=520e-3, ticks_step=1):
     """
 
@@ -249,7 +253,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
 
     fig = plt.figure(figsize=(20, 40))
     axs = ImageGrid(fig, 111,
-                    nrows_ncols=(2, 4),
+                    nrows_ncols=(2, 5),
                     axes_pad=0.6,
                     cbar_location="right",
                     cbar_mode="edge",
@@ -257,18 +261,25 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
                     cbar_pad=0.2
                     )
 
+    ph_range = lambda delta: np.angle(np.exp(1j * delta))  # from [0, 2pi] to [-pi, pi]
+
     Ax = np.abs(Ex[trim:ntrim, trim:ntrim])
     Ay = np.abs(Ey[trim:ntrim, trim:ntrim])
     Az = np.abs(Ez[trim:ntrim, trim:ntrim])
-    phx = np.angle(Ex[trim:ntrim, trim:ntrim])
-    phy = np.angle(Ey[trim:ntrim, trim:ntrim])
-    phz = np.angle(Ez[trim:ntrim, trim:ntrim])
+    phx = np.angle(Ex[trim:ntrim, trim:ntrim])  # range [-pi, pi]
+    phy = np.angle(Ey[trim:ntrim, trim:ntrim])  # range [-pi, pi]
+    phz = np.angle(Ez[trim:ntrim, trim:ntrim])  # range [-pi, pi]
 
-    I = np.sqrt(Ax ** 2 + Ay ** 2)
+    IT = np.sqrt(Ax ** 2 + Ay ** 2 + Az ** 2)
+    Itrans = np.sqrt(Ax ** 2 + Ay ** 2)
+    maxIT = np.max(IT)
 
-    # phx = np.mod(phx + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
-    # phy = np.mod(phy + np.pi, 2*np.pi) - np.pi  # range [-pi, pi], 2*np.pi)
-    ph = np.mod(phy - phx + np.pi, 2 * np.pi) - np.pi  # range [-pi, pi]
+    ph = ph_range(phy-phx)  # range [-pi, pi]
+
+    exp_phase_shift = (np.arctan2(trans_stokes[3], trans_stokes[2]) if trans_stokes else
+                       np.angle(Ey))  # range [-pi, pi]
+    exp_phase_shift = exp_phase_shift[trim:ntrim, trim:ntrim]
+    ph_error = ph_range(ph - exp_phase_shift) # range [-pi, pi]
 
     my_greens = np.zeros((256, 4))
     my_greens[:, 1] = np.linspace(0, 1, 256)
@@ -286,7 +297,7 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
     else:
         bra = '{'
         ket = '}'
-        get_title = lambda name, im: (f'${name}$  $_{bra}[max={int(im.max())}]{ket}$')
+        get_title = lambda name, im: (f'${name}$  $_{bra}[max={(im.max()):0.2f}]{ket}$')
         fs = 20
 
     for idx, ax in enumerate(axs):
@@ -297,35 +308,44 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
         if idx == 0:
             im = ax.imshow(normalize(Ax), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title('|E_x|', Ax), fontsize=fs)
+            ax.set_title(get_title('|E_x|', Ax/maxIT), fontsize=fs)
         elif idx == 1:
             im = ax.imshow(normalize(Ay), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title('|E_y|', Ay), fontsize=fs)
+            ax.set_title(get_title('|E_y|', Ay/maxIT), fontsize=fs)
         elif idx == 2:
-            im = ax.imshow(normalize(I), cmap=cmap_amps,
+            im = ax.imshow(normalize(Itrans), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title(r'\sqrt{|E_x|^2+|E_y|^2}', I), fontsize=fs)
+            ax.set_title(get_title(r'\sqrt{|E_x|^2+|E_y|^2}', Itrans/maxIT), fontsize=fs)
         elif idx == 3:
             im = ax.imshow(normalize(Az), cmap=cmap_amps,
                            vmin=0, vmax=1, extent=extent)
-            ax.set_title(get_title('|E_z|', Az), fontsize=fs)
+            ax.set_title(get_title('|E_z|', Az/maxIT), fontsize=fs)
         elif idx == 4:
+            im = ax.imshow(normalize(IT), cmap=cmap_amps,
+                           vmin=0, vmax=1, extent=extent)
+            ax.set_title(get_title(r'\sqrt{I_T}', IT/maxIT), fontsize=fs)
+        elif idx == 5:
             im = ax.imshow(phx, cmap=cmap_phs,
                            vmin=-np.pi, vmax=np.pi, extent=extent)
-            ax.set_title(r'$\phi_x$', fontsize=fs)
-        elif idx == 5:
+            ax.set_title(r'$\delta_x$', fontsize=fs)
+        elif idx == 6:
             im = ax.imshow(phy, cmap=cmap_phs,
                            vmin=-np.pi, vmax=np.pi, extent=extent)
-            ax.set_title(r'$\phi_y$', fontsize=fs)
-        elif idx == 6:
+            ax.set_title(r'$\delta_y$', fontsize=fs)
+        elif idx == 7:
             im = ax.imshow(ph, cmap=cmap_phs,
                            vmin=-np.pi, vmax=np.pi, extent=extent)
-            ax.set_title(r'$\phi_y-\phi_x$', fontsize=fs)
-        elif idx == 7:
+            ax.set_title(r'$\tilde{\delta}=\delta_y-\delta_x$', fontsize=fs)
+        elif idx == 8:
             im = ax.imshow(phz, cmap=cmap_phs,
                            vmin=-np.pi, vmax=np.pi, extent=extent)
-            ax.set_title(r'$\phi_z$', fontsize=fs)
+            ax.set_title(r'$\delta_z$', fontsize=fs)
+        elif idx == 9 and trans_stokes:
+            im = ax.imshow(ph_error, cmap=cmap_phs,
+                           vmin=-np.pi, vmax=np.pi, extent=extent)
+            ax.set_title(r'$\epsilon_\delta=\tilde{\delta}-\delta_{exp}$', fontsize=fs)
+
 
         ax.set_xticks(ticks)
         ax.set_xticklabels(ticks, fontsize=20)
@@ -347,6 +367,72 @@ def plot_fields(Ex, Ey, Ez, fig_num=0, trim=None, label="", verbose=1,
     plt.show()
     return print_fig(f"({label} Pol.) Field in the focal plane.", fig_num)
 
+def plot_polarization_ellipse(Ex, Ey, Ez, n, m, trim=None, ticks_step=1,pixel_size=1,lamb=520e-3,
+                             label='', fig_num=1, verbose=1, ax=None, format='-k'):
+    """ Plot nxn ellipses of polarization using m points,
+        according to the transversal components of the field.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_aspect('equal')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+    ntrim = -trim if trim else None
+    lims = Ex[trim:ntrim, trim:ntrim].shape
+
+    extension = lims[0] * pixel_size / lamb  # window size in microns
+    half_side = extension / 2
+    extent = [-half_side, half_side, -half_side, half_side]
+
+    ticks = [0]
+    for tt in range(int(extension / ticks_step / 2)):
+        tt1 = tt + 1
+        ticks.append(tt1 * ticks_step)
+        ticks.insert(0, -tt1 * ticks_step)
+
+    Ax = np.abs(Ex[trim:ntrim, trim:ntrim])
+    Ay = np.abs(Ey[trim:ntrim, trim:ntrim])
+    size = Ax.shape[0]
+    Ax /= Ax.max()
+    Ay /= Ay.max()
+
+    phx = np.angle(Ex[trim:ntrim, trim:ntrim])
+    phy = np.angle(Ey[trim:ntrim, trim:ntrim])
+
+    for i in range(n):
+        for j in range(n):
+            """ plot nxn points equaly distributed in a square of sizexsize """
+            x = (i + 0.5) * size / n
+            y = (j + 0.5) * size / n
+            x1 = []
+            y1 = []
+            for k in range(m):
+                """ plot m points in each ellipse """
+                theta = k * 2 * np.pi / m
+                ellipse_x = np.cos(theta + phx[int(x), int(y)]) * Ax[int(x), int(y)]
+                ellipse_y = np.cos(theta + phy[int(x), int(y)]) * Ay[int(x), int(y)]
+
+                ellipse_step = size / n / 2.3
+
+                ellipse_x *= ellipse_step
+                ellipse_y *= ellipse_step
+
+                xx = x + ellipse_x
+                yy = y + ellipse_y
+
+                x1.append(xx)
+                y1.append(yy)
+
+            ax.plot(x1+[x1[0]], y1+[y1[0]], format, markersize=1, linewidth=1,
+                    label=label if i == 0 and j == 0 else None)
+
+    # ax.set_xticks([t/pixel_size * lamb + size/2 for t in ticks])
+    # ax.set_xticklabels(ticks, fontsize=20)
+    # ax.set_yticks([t/pixel_size * lamb + size/2 for t in ticks])
+    # ax.set_yticklabels(ticks, fontsize=20)
+
+    return ax, ticks, [t/pixel_size * lamb + size/2 for t in ticks]
 
 def plot_trans_stokes(S0, S1, S2, S3, label, trim=None,
                       pixel_size=1, lamb=520e-3, fig_num=0, verbose=1):
@@ -479,7 +565,7 @@ def plot_3D_stokes(experimental_s, theoric_s, label, pixel_size=1, lamb=520e-3,
                      f"the numerical calculation for comparison purposes.", fig_num)
 
 
-def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
+def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num, ticks_step = 1,
                    label='', pixel_size=1, lamb=520e-3, fig_num=0, trim=100):
     fig = plt.figure(figsize=(10,7.5), layout='tight')
     subfigs = fig.subfigures(2, 1, height_ratios=(1,2.75))
@@ -487,8 +573,6 @@ def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num,
     cmap = 'seismic'
     ntrim = -trim if trim else None
     lims = local_stokes[0][trim:ntrim, trim:ntrim].shape
-
-    ticks_step = 1  # lambda
 
     extension = lims[0] * pixel_size / lamb  # window size in microns
     half_side = extension / 2
