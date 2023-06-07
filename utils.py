@@ -105,15 +105,16 @@ def get_theoretical_field(kind, sigma=2, NA=0.7, lamb=520e-3, n=256, verbose=0, 
     g /= coords["sqcosth"] * (1 - coords["costh"]) * coords["mask"]
     if kind == "radial":
         g *= coords["sinth"]
-    if mario:
-        # let's define a Gaussian profile
+    elif kind == "takoma":
+        # Gaussina profile with topological charge
         g = np.ones((n, n), dtype=np.complex128)
-        g *= np.exp(-coords["r2"]/(2*sigma**2))
-        g *= np.exp(1j*coords["phi"]*m_topo)
+        g *= np.exp(-coords["r2"] / (2 * sigma ** 2))
+        g *= np.exp(1j * coords["phi"] * m_topo)
+        g *= coords["sinth"]
     g *= coords["mask"]
 
     # polarization
-    if kind == "radial":
+    if kind == "radial" or kind == "takoma":
         E[:, :, 0] = coords["cosphi"]
         E[:, :, 1] = coords["sinphi"]
     elif kind == "circular":
@@ -638,6 +639,62 @@ def plot_paper_fig(trans_stokes, local_stokes, local_stokes_num, ticks_step = 1,
                      f"(center) Experimental local Stokes images in the PQ-basis, and "
                      f"(bottom) Numerical calculation of local Stokes images "
                      f"for comparison purposes.", fig_num)
+
+
+def plot_takoma_fig(trans_stokes, local_stokes, label, pixel_size=1, lamb=520e-3,
+                    trim=None, fig_num=0):
+    ntrim = -trim if trim else None
+    lims = trans_stokes[0][trim:ntrim, trim:ntrim].shape
+
+    ticks_step = 1  # lambda
+
+    extension = lims[0] * pixel_size / lamb  # window size in microns
+    half_side = extension / 2
+    extent = [-half_side, half_side, -half_side, half_side]
+
+    ticks = [0]
+    for tt in range(int(extension / ticks_step / 2)):
+        tt1 = tt + 1
+        ticks.append(tt1 * ticks_step)
+        ticks.insert(0, -tt1 * ticks_step)
+
+    fig = plt.figure(figsize=(20, 30))
+    axs = ImageGrid(fig, 111,
+                    nrows_ncols=(2, 4),
+                    axes_pad=0.6,
+                    cbar_location="right",
+                    cbar_mode="single",
+                    cbar_size="5%",
+                    cbar_pad=0.2
+                    )
+    S_tilde = r'\tilde{S}'
+    titles = [f'$S_{i}$' for i in range(4)]
+    titles += [f'${S_tilde}_{i}$' for i in range(4)]
+
+
+    for idx, ax in enumerate(axs):
+        if idx < 4:
+            stokes = trans_stokes
+        else:
+            stokes = local_stokes
+        ax.set_aspect('equal')
+        ax.set_xlabel(r'$x \, / \, \lambda$', fontsize=20)
+        ax.set_ylabel(r'$y \, / \, \lambda$', fontsize=20)
+
+        im = ax.imshow(stokes[trim:ntrim, trim:ntrim, idx%4]/stokes[:,:,0].max(),
+                       cmap='seismic', vmin=-1, vmax=1, extent=extent)  #
+        ax.set_title(titles[idx], fontsize=20)
+        ax.set_xticks(ticks)
+        ax.set_xticklabels(ticks, fontsize=20)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels(ticks, fontsize=20)
+
+    cbar = plt.colorbar(im, cax=axs.cbar_axes[0], ticks=[0, 1])
+    [t.set_fontsize(20) for t in cbar.ax.get_yticklabels()]
+    plt.show()
+
+    return print_fig(f"({label}) Comparation of Transversal and Local "
+                     f"Stokes parameters.", fig_num)
 
 
 if __name__ == "__main__":
