@@ -5,7 +5,7 @@
 *<sup>1</sup>Universidad Complutense de Madrid (UCM), Departamento de Óptica, Ciudad Universitaria, 28040, Madrid,
 Spain*
 
-*<sup>1</sup>Universitat de Barcelona (UB), Facultat de Física, Departament de Física aplicada, Martí i Franques 1, 08028, `
+*<sup>2</sup>Universitat de Barcelona (UB), Facultat de Física, Departament de Física aplicada, Martí i Franques 1, 08028, `
 Barcelona, Spain*
 
 <sub>DOI: [**10.1364/PRJ.488703**](https://opg.optica.org/prj/upcoming_pdf.cfm?id=488703) ; Received: **27 Feb 2023** ; Accepted: 17 May 2023 ; Posted: 23 May 2023</sub>
