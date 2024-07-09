@@ -101,7 +101,7 @@ class HighNAField(np.ndarray):
         r[mask] = 0
         r[:] = r/r.max()
         # Actual calculation of the Zernikes
-        W = np.empty((nx, ny), dtype=np.float_)
+        W = np.empty((nx, ny), dtype=np.float64)
         if type(zernikes) != dict:
             raise ValueError("Zernikes must be a dictionary.")
         ik = 2j*np.pi/self.lamb
