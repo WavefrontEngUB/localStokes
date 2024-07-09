@@ -104,9 +104,9 @@ def compute_ref_sphere_field(Ein, f, NA,  Lx, Ly, lamb, n=1.):
     sinphi = np.sin(phi)
 
     # Transformation to a three dimensional field
-    E_sp = np.empty((nx, ny, 3), dtype=np.complex_)
-    a1 = np.empty((nx, ny), dtype=np.complex_)
-    a2 = np.empty((nx, ny), dtype=np.complex_)
+    E_sp = np.empty((nx, ny, 3), dtype=np.complex128)
+    a1 = np.empty((nx, ny), dtype=np.complex128)
+    a2 = np.empty((nx, ny), dtype=np.complex128)
 
     a1[:, :] = Ein[:, :, 0] * (-sinphi) + Ein[:, :, 1] * cosphi
     a2[:, :] = Ein[:, :, 0] * cosphi    + Ein[:, :, 1] * sinphi

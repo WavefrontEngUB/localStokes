@@ -88,7 +88,7 @@ class HighNAField(np.ndarray):
         # TODO: Specify that zernikes must be a dictionary.
         # Defining the array to contain the pupil function
         nx, ny, _ = self.shape
-        P = np.ones((nx, ny), dtype=np.complex_)
+        P = np.ones((nx, ny), dtype=np.complex128)
         pair_index = get_zernike_index(order=order)
         # Limits of the entrance pupil.
         Lx, Ly = self.wdim
